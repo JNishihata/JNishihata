@@ -5,6 +5,6 @@
 </picture>
 
 <picture><img src="https://github-readme-stats-sigma-five.vercel.app/api?username=JNishihata&show_icons=false&theme=transparent&hide_border=true" width="48%" /></picture>
-[![JNishihata's GitHub stats](https://github-readme-stats-sigma-five.vercel.app/api/top-langs/?username=JNishihata&layout=compact&theme=transparent)](https://github.com/anuraghazra/github-readme-stats)
-
-![](https://komarev.com/ghpvc/?username=JNishihata&style=flat-square)
+[![JNishihata's GitHub stats](https://github-readme-stats-sigma-five.vercel.app/api/top-langs/?username=JNishihata&layout=compact&theme=transparent)](https://github.com/anuraghazra/github-readme-stats)  
+[![My Skills](https://skillicons.dev/icons?i=apple,swift,c,python,ubuntu,nginx,vscode)](https://skillicons.dev)  
+![](https://komarev.com/ghpvc/?username=JNishihata&style=flat-square)  
