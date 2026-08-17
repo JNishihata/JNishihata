@@ -1,8 +1,8 @@
 name: GitHub Metrics
 on:
-  # 毎時（UTC）に自動実行
+  # 3時間ごと（UTC）に自動実行
   schedule:
-    - cron: "0 * * * *"
+    - cron: "17 */3 * * *"
   # 手動実行も可能にする
   workflow_dispatch:
   # mainブランチへのpushでも実行
@@ -13,8 +13,10 @@ jobs:
   github-metrics:
     runs-on: ubuntu-latest
     steps:
-      - name: Generate Metrics
-        uses: lowlighter/metrics@latest
+      - name: Generate Metrics (Attempt 1)
+        id: metrics_attempt_1
+        continue-on-error: true
+        uses: lowlighter/metrics@v3.34
         with:
           # ファイル名と出力先
           filename: output/metrics.svg
@@ -32,5 +34,43 @@ jobs:
           plugin_languages_limit: 8
           plugin_followup: yes
           plugin_followup_indepth: yes
-          plugin_achievements: yes
-          plugin_achievements_display: compact
+          plugin_achievements: no
+          plugin_projects: no
+          plugins_errors_fatal: no
+      - name: Generate Metrics (Attempt 2)
+        id: metrics_attempt_2
+        if: steps.metrics_attempt_1.outcome == 'failure'
+        continue-on-error: true
+        uses: lowlighter/metrics@v3.34
+        with:
+          filename: output/metrics.svg
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          base: header, activity, community, repositories, metadata
+          plugin_languages: yes
+          plugin_languages_details: bytes-size, percentage
+          plugin_languages_limit: 8
+          plugin_followup: yes
+          plugin_followup_indepth: yes
+          plugin_achievements: no
+          plugin_projects: no
+          plugins_errors_fatal: no
+      - name: Generate Metrics (Attempt 3)
+        id: metrics_attempt_3
+        if: steps.metrics_attempt_1.outcome == 'failure' && steps.metrics_attempt_2.outcome == 'failure'
+        continue-on-error: true
+        uses: lowlighter/metrics@v3.34
+        with:
+          filename: output/metrics.svg
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          base: header, activity, community, repositories, metadata
+          plugin_languages: yes
+          plugin_languages_details: bytes-size, percentage
+          plugin_languages_limit: 8
+          plugin_followup: yes
+          plugin_followup_indepth: yes
+          plugin_achievements: no
+          plugin_projects: no
+          plugins_errors_fatal: no
+      - name: Fail if all attempts failed
+        if: steps.metrics_attempt_1.outcome == 'failure' && steps.metrics_attempt_2.outcome == 'failure' && steps.metrics_attempt_3.outcome == 'failure'
+        run: exit 1
