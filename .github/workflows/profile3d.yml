@@ -1,8 +1,8 @@
 name: Generate 3D Contribution Graph
 on:
-  # 3時間ごと（UTC）に自動実行
+  # 6時間ごと（UTC）に自動実行
   schedule:
-    - cron: "47 */3 * * *"
+    - cron: "47 */6 * * *"
   # 手動実行も可能にする
   workflow_dispatch:
   # mainブランチへのpushでも実行
@@ -28,6 +28,9 @@ jobs:
           # プライベートリポジトリを含める場合はPERSONAL_ACCESS_TOKENを使用
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           USERNAME: ${{ github.repository_owner }}
+      - name: Wait before retry
+        if: steps.graph_attempt_1.outcome == 'failure'
+        run: sleep 30
       - name: Generate 3D Graph (Attempt 2)
         id: graph_attempt_2
         if: steps.graph_attempt_1.outcome == 'failure'
@@ -36,6 +39,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           USERNAME: ${{ github.repository_owner }}
+      - name: Wait before final retry
+        if: steps.graph_attempt_1.outcome == 'failure' && steps.graph_attempt_2.outcome == 'failure'
+        run: sleep 60
       - name: Generate 3D Graph (Attempt 3)
         id: graph_attempt_3
         if: steps.graph_attempt_1.outcome == 'failure' && steps.graph_attempt_2.outcome == 'failure'
