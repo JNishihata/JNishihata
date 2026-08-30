@@ -20,7 +20,7 @@ jobs:
       - name: Generate Metrics (Attempt 1)
         id: metrics_attempt_1
         continue-on-error: true
-        uses: lowlighter/metrics@v3.34
+        uses: lowlighter/metrics@65836723097537a54cd8eb90f61839426b4266b6 # v3.34
         with:
           # ファイル名と出力先
           filename: output/metrics.svg
@@ -48,27 +48,7 @@ jobs:
         id: metrics_attempt_2
         if: steps.metrics_attempt_1.outcome == 'failure'
         continue-on-error: true
-        uses: lowlighter/metrics@v3.34
-        with:
-          filename: output/metrics.svg
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-          base: header, activity, community, repositories, metadata
-          plugin_languages: "yes"
-          plugin_languages_details: bytes-size, percentage
-          plugin_languages_limit: 8
-          plugin_followup: "yes"
-          plugin_followup_indepth: "yes"
-          plugin_achievements: "no"
-          plugin_projects: "no"
-          plugins_errors_fatal: "no"
-      - name: Wait before final retry
-        if: steps.metrics_attempt_1.outcome == 'failure' && steps.metrics_attempt_2.outcome == 'failure'
-        run: sleep 60
-      - name: Generate Metrics (Attempt 3)
-        id: metrics_attempt_3
-        if: steps.metrics_attempt_1.outcome == 'failure' && steps.metrics_attempt_2.outcome == 'failure'
-        continue-on-error: true
-        uses: lowlighter/metrics@v3.34
+        uses: lowlighter/metrics@65836723097537a54cd8eb90f61839426b4266b6 # v3.34
         with:
           filename: output/metrics.svg
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
@@ -82,7 +62,7 @@ jobs:
           plugin_projects: "no"
           plugins_errors_fatal: "no"
       - name: Fail if all attempts failed
-        if: steps.metrics_attempt_1.outcome == 'failure' && steps.metrics_attempt_2.outcome == 'failure' && steps.metrics_attempt_3.outcome == 'failure'
+        if: steps.metrics_attempt_1.outcome == 'failure' && steps.metrics_attempt_2.outcome == 'failure'
         run: exit 1
       - name: Alert on repeated same failure
         if: failure()
@@ -93,6 +73,7 @@ jobs:
             const repo = context.repo.repo
             const workflow_id = "metrics.yml"
             const currentRunId = context.runId
+            const consecutiveFailureThreshold = 3
 
             const runsRes = await github.rest.actions.listWorkflowRuns({
               owner,
@@ -100,12 +81,17 @@ jobs:
               workflow_id,
               per_page: 20
             })
-            const previousRun = runsRes.data.workflow_runs
+            const completedRuns = runsRes.data.workflow_runs
               .filter(run => run.id !== currentRunId && run.status === "completed")
-              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
+              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            const previousRuns = completedRuns.slice(0, consecutiveFailureThreshold - 1)
 
-            if (!previousRun || previousRun.conclusion !== "failure") {
-              core.info("Previous run is not failure. Skip alert.")
+            if (previousRuns.length < consecutiveFailureThreshold - 1) {
+              core.info("Not enough previous runs to evaluate consecutive failures. Skip alert.")
+              return
+            }
+            if (previousRuns.some(run => run.conclusion !== "failure")) {
+              core.info("Previous runs are not all failures. Skip alert.")
               return
             }
 
@@ -125,20 +111,20 @@ jobs:
             }
 
             const currentSignature = await failedSignature(currentRunId)
-            const previousSignature = await failedSignature(previousRun.id)
+            const previousSignatures = await Promise.all(previousRuns.map(run => failedSignature(run.id)))
 
-            if (!currentSignature || currentSignature !== previousSignature) {
+            if (!currentSignature || previousSignatures.some(signature => !signature || signature !== currentSignature)) {
               core.info("Failure signature is different. Skip alert.")
               return
             }
 
             const title = "[Action Alert] Repeated failure in GitHub Metrics"
             const body = [
-              "Consecutive workflow runs failed with the same failure signature.",
+              `Consecutive workflow runs failed with the same failure signature (${consecutiveFailureThreshold} runs).`,
               "",
               `- Workflow: ${context.workflow}`,
               `- Current run: ${context.serverUrl}/${owner}/${repo}/actions/runs/${currentRunId}`,
-              `- Previous run: ${previousRun.html_url}`,
+              ...previousRuns.map(run => `- Previous run: ${run.html_url}`),
               `- Failure signature: \`${currentSignature}\``
             ].join("\n")
 
