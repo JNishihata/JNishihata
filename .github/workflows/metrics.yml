@@ -20,7 +20,7 @@ jobs:
       - name: Generate Metrics (Attempt 1)
         id: metrics_attempt_1
         continue-on-error: true
-        uses: lowlighter/metrics@v3.34
+        uses: lowlighter/metrics@v3.33
         with:
           # ファイル名と出力先
           filename: output/metrics.svg
@@ -48,7 +48,7 @@ jobs:
         id: metrics_attempt_2
         if: steps.metrics_attempt_1.outcome == 'failure'
         continue-on-error: true
-        uses: lowlighter/metrics@v3.34
+        uses: lowlighter/metrics@v3.33
         with:
           filename: output/metrics.svg
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
@@ -68,7 +68,7 @@ jobs:
         id: metrics_attempt_3
         if: steps.metrics_attempt_1.outcome == 'failure' && steps.metrics_attempt_2.outcome == 'failure'
         continue-on-error: true
-        uses: lowlighter/metrics@v3.34
+        uses: lowlighter/metrics@v3.33
         with:
           filename: output/metrics.svg
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
