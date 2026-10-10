@@ -130,4 +130,6 @@ jobs:
             exit 0
           fi
           git commit -m "Update 3D contribution graph"
-          git push
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
