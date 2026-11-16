@@ -1,153 +1,48 @@
-name: GitHub Metrics
+name: Update README cards
+
 on:
-  # 6時間ごと（UTC）に自動実行
   schedule:
-    - cron: "17 */6 * * *"
-  # 手動実行も可能にする
+    - cron: "0 0 * * *" # Runs once daily at midnight
   workflow_dispatch:
-  # mainブランチへのpushでも実行
-  push:
-    branches:
-      - main
-permissions:
-  contents: write
-  actions: read
-  issues: write
+
 jobs:
-  github-metrics:
+  build:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
     steps:
-      - name: Generate Metrics (Attempt 1)
-        id: metrics_attempt_1
-        continue-on-error: true
-        uses: lowlighter/metrics@v3.33
+      - uses: actions/checkout@v6
+
+      - name: Generate stats card
+        uses: stats-organization/github-readme-stats-action@v2
         with:
-          # ファイル名と出力先
-          filename: output/metrics.svg
-          # トークンを指定（プライベートリポジトリを含める場合）
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-          # パブリックリポジトリのみの場合は、以下のコメントを解除
-          # token: ${{ secrets.GITHUB_TOKEN }}
+          card: stats
+          options: username=${{ github.repository_owner }}&show_icons=true
+          path: profile/stats.svg
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-          # 基本設定
-          base: header, activity, community, repositories, metadata
-
-          # プラグイン設定
-          plugin_languages: "yes"
-          plugin_languages_details: bytes-size, percentage
-          plugin_languages_limit: 8
-          plugin_followup: "yes"
-          plugin_followup_indepth: "yes"
-          plugin_achievements: "no"
-          plugin_projects: "no"
-          plugins_errors_fatal: "no"
-      - name: Wait before retry
-        if: steps.metrics_attempt_1.outcome == 'failure'
-        run: sleep 30
-      - name: Generate Metrics (Attempt 2)
-        id: metrics_attempt_2
-        if: steps.metrics_attempt_1.outcome == 'failure'
-        continue-on-error: true
-        uses: lowlighter/metrics@v3.33
+      - name: Generate top languages card
+        uses: stats-organization/github-readme-stats-action@v2
         with:
-          filename: output/metrics.svg
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-          base: header, activity, community, repositories, metadata
-          plugin_languages: "yes"
-          plugin_languages_details: bytes-size, percentage
-          plugin_languages_limit: 8
-          plugin_followup: "yes"
-          plugin_followup_indepth: "yes"
-          plugin_achievements: "no"
-          plugin_projects: "no"
-          plugins_errors_fatal: "no"
-      - name: Wait before final retry
-        if: steps.metrics_attempt_1.outcome == 'failure' && steps.metrics_attempt_2.outcome == 'failure'
-        run: sleep 60
-      - name: Generate Metrics (Attempt 3)
-        id: metrics_attempt_3
-        if: steps.metrics_attempt_1.outcome == 'failure' && steps.metrics_attempt_2.outcome == 'failure'
-        continue-on-error: true
-        uses: lowlighter/metrics@v3.33
+          card: top-langs
+          options: username=${{ github.repository_owner }}&layout=compact&langs_count=6
+          path: profile/top-langs.svg
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate pin card
+        uses: stats-organization/github-readme-stats-action@v2
         with:
-          filename: output/metrics.svg
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-          base: header, activity, community, repositories, metadata
-          plugin_languages: "yes"
-          plugin_languages_details: bytes-size, percentage
-          plugin_languages_limit: 8
-          plugin_followup: "yes"
-          plugin_followup_indepth: "yes"
-          plugin_achievements: "no"
-          plugin_projects: "no"
-          plugins_errors_fatal: "no"
-      - name: Fail if all attempts failed
-        if: steps.metrics_attempt_1.outcome == 'failure' && steps.metrics_attempt_2.outcome == 'failure' && steps.metrics_attempt_3.outcome == 'failure'
-        run: exit 1
-      - name: Alert on repeated same failure
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const owner = context.repo.owner
-            const repo = context.repo.repo
-            const workflow_id = "metrics.yml"
-            const currentRunId = context.runId
+          card: pin
+          options: username=stats-organization&repo=github-readme-stats
+          path: profile/pin-stats-organization-github-readme-stats.svg
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-            const runsRes = await github.rest.actions.listWorkflowRuns({
-              owner,
-              repo,
-              workflow_id,
-              per_page: 20
-            })
-            const previousRun = runsRes.data.workflow_runs
-              .filter(run => run.id !== currentRunId && run.status === "completed")
-              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
-
-            if (!previousRun || previousRun.conclusion !== "failure") {
-              core.info("Previous run is not failure. Skip alert.")
-              return
-            }
-
-            const failedSignature = async (runId) => {
-              const jobsRes = await github.rest.actions.listJobsForWorkflowRun({ owner, repo, run_id: runId, per_page: 100 })
-              return jobsRes.data.jobs
-                .filter(job => job.conclusion === "failure")
-                .map(job => {
-                  const failedSteps = (job.steps || [])
-                    .filter(step => step.conclusion === "failure")
-                    .map(step => step.name)
-                    .sort()
-                  return `${job.name}:${failedSteps.join("|")}`
-                })
-                .sort()
-                .join(";;")
-            }
-
-            const currentSignature = await failedSignature(currentRunId)
-            const previousSignature = await failedSignature(previousRun.id)
-
-            if (!currentSignature || currentSignature !== previousSignature) {
-              core.info("Failure signature is different. Skip alert.")
-              return
-            }
-
-            const title = "[Action Alert] Repeated failure in GitHub Metrics"
-            const body = [
-              "Consecutive workflow runs failed with the same failure signature.",
-              "",
-              `- Workflow: ${context.workflow}`,
-              `- Current run: ${context.serverUrl}/${owner}/${repo}/actions/runs/${currentRunId}`,
-              `- Previous run: ${previousRun.html_url}`,
-              `- Failure signature: \`${currentSignature}\``
-            ].join("\n")
-
-            const openIssues = await github.rest.issues.listForRepo({ owner, repo, state: "open", per_page: 100 })
-            const existing = openIssues.data.find(issue => issue.title === title)
-            if (existing) {
-              await github.rest.issues.createComment({ owner, repo, issue_number: existing.number, body })
-              core.info(`Commented on existing issue #${existing.number}`)
-            } else {
-              await github.rest.issues.create({ owner, repo, title, body })
-              core.info("Created new alert issue")
-            }
+      - name: Commit cards
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add profile/*.svg
+          git commit -m "Update README cards" || exit 0
+          git push
